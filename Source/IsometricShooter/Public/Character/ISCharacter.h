@@ -6,6 +6,13 @@
 #include "GameFramework/Character.h"
 #include "ISCharacter.generated.h"
 
+UENUM(BlueprintType)
+enum class EFacingMode : uint8
+{
+	Movement		UMETA(DisplayName = "Movement"),
+	PointOfInterest	UMETA(DisplayName = "Point of Interest")
+};
+
 class USpringArmComponent;
 class UInputAction;
 class UCameraComponent;
@@ -41,6 +48,16 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Input")
 	TObjectPtr<UInputAction> ShootAction;
 
+	UPROPERTY()
+	EFacingMode FacingMode;
+
+	UPROPERTY()
+	FVector PointOfInterest;
+
+	void SetFocusPointOfInterest(bool focus);
+
+	class AISPlayerController* PlayerController;
+
 public:	
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
@@ -53,4 +70,5 @@ private:
 	void StartShoot(const FInputActionInstance& Instance);
 	void HandleShoot(const FInputActionInstance& Instance);
 	void StopShoot(const FInputActionInstance& Instance);
+	void LookAt(FVector location, bool bSmoothRotation, float DeltaTime, float RotationSpeed);
 };

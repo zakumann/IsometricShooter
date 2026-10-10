@@ -1,0 +1,14 @@
+#include "coreMinimal.h"
+#include "GameFramework/PlayerController.h"
+#include "ISPlayerController.generated.h"
+
+UCLASS()
+class IsometricShooter_API AIsometricShooter : public AISPlayerController
+{
+	GENERATED_BODY()
+
+public:
+	bool GetWorldCursorGrondPosition(FVector &CursorGroundPosition);
+protected:
+	virtual void BeginPlay() override;
+}

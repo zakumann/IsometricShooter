@@ -1,0 +1,21 @@
+#include "PlayerController/ISPlayerController.h"
+
+
+void AISPlayerController::BeginPlay()
+{
+	bShowMouseCursor = true;
+}
+
+bool AISPlayerController::GetWorldCursorGrondPosition(FVector &CursorGroundPosition)
+{
+	FVector WorldPosition;
+	FVector WorldDirection;
+
+	DeprojectMousePositionToWorld(WorldPosition, WorldDirection);
+
+	float DistanceToGround = 0.0f - WorldPosition.Z / WorldDirection.Z;
+
+	CursorGroundPosition= WorldPosition + WorldDirection * DistanceToGround;
+
+	return false;
+}

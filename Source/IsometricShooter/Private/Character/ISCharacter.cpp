@@ -6,8 +6,9 @@
 #include "GameFramework/SpringArmComponent.h"
 #include "Camera/CameraComponent.h"
 #include "InputActionValue.h"
-#include "InputAction.h"
+#include "PlayerController/ISPlayerController.h"
 #include "InputMappingContext.h"
+#include "GameFramework/CharacterMovementComponent.h"
 
 // Sets default values
 AISCharacter::AISCharacter()
@@ -15,17 +16,29 @@ AISCharacter::AISCharacter()
  	// Set this character to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
 
+	bUseControllerRotationYaw = false;
+
 	SpringArmComp = CreateDefaultSubobject<USpringArmComponent>(TEXT("SpringArmComp"));
 	SpringArmComp->SetupAttachment(GetRootComponent());
+	SpringArmComp->TargetArmLength = 1200.0f;
+	SpringArmComp->SetWorldRotation(FRotator(-60.0f, 0.0f, 0.0f));
+	SpringArmComp->bInheritPitch = false;
+	SpringArmComp->bInheritYaw = false;
+	SpringArmComp->bInheritRoll = false;
+	SpringArmComp->bDoCollisionTest = false;
 
 	TopDownCameraComp = CreateDefaultSubobject<UCameraComponent>(TEXT("TopDownCameraComp"));
 	TopDownCameraComp->SetupAttachment(SpringArmComp);
+
+	GetCharacterMovement()->bOrientRotationToMovement = true;
 }
 
 // Called when the game starts or when spawned
 void AISCharacter::BeginPlay()
 {
 	Super::BeginPlay();
+
+	PlayerController = Cast<AISPlayerController>(GetController());
 
 	if (ULocalPlayer* LocalPlayer = Cast<ULocalPlayer>(GetWorld()->GetFirstLocalPlayerFromController()))
 	{
@@ -38,11 +51,22 @@ void AISCharacter::BeginPlay()
 		}
 	}
 }
-
+void AISCharacter::SetFocusPointOfInterest(bool focus)
+{
+	if (focus)
+	{
+		FacingMode = EFacingMode::PointOfInterest;
+		GetCharacterMovement()->bOrientRotationToMovement = false;
+	}
+	else
+	{
+		FacingMode = EFacingMode::Movement;
+		GetCharacterMovement()->bOrientRotationToMovement = true;
+	}
+}
 
 void AISCharacter::Move(const FInputActionInstance& Instance)
 {
-	UE_LOG(LogTemp, Warning, TEXT("Move"));
 	if (!TopDownCameraComp) return;
 
 	const FVector2D MovementVector = Instance.GetValue().Get<FVector2D>();
@@ -62,16 +86,47 @@ void AISCharacter::Move(const FInputActionInstance& Instance)
 void AISCharacter::StartShoot(const FInputActionInstance& Instance)
 {
 	UE_LOG(LogTemp, Warning, TEXT("Start Shoot"));
+	SetFocusPointOfInterest(true);
 }
 
 void AISCharacter::HandleShoot(const FInputActionInstance& Instance)
 {
 	UE_LOG(LogTemp, Warning, TEXT("Holding Shoot"));
+
+	if (!PlayerController) return;
+
+	FVector Location = GetActorLocation();
+
+	FVector CursorGroundPosition;
+	if (PlayerController->GetCursorGroundPosition(CursorGroundPosition, Location.Z))
+	{
+		PointOfInterest = CursorGroundPosition;
+		FVector Forward = GetActorForwardVector();
+		DrawDebugLine(GetWorld(), Location, Location + Forward * 1000.0f, FColor::Purple, false, -1.0f, 0, 5.0f);
+	}
 }
 
 void AISCharacter::StopShoot(const FInputActionInstance& Instance)
 {
 	UE_LOG(LogTemp, Warning, TEXT("Stop Shoot"));
+	SetFocusPointOfInterest(false);
+}
+
+void AISCharacter::LookAt(FVector location, bool bSmoothRotation, float DeltaTime, float RotationSpeed)
+{
+	FVector Direction = location - GetActorLocation();
+	Direction.Z = 0.0f;
+
+	FRotator TargetRotation = Direction.Rotation();
+
+	if (!bSmoothRotation)
+	{
+		SetActorRotation(Direction.Rotation());
+		return;
+	}
+
+	FRotator PartialRotation = FMath::RInterpTo(GetActorRotation(), TargetRotation, DeltaTime, RotationSpeed);
+	SetActorRotation(PartialRotation);
 }
 
 
@@ -80,6 +135,10 @@ void AISCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
+	if (FacingMode == EFacingMode::PointOfInterest)
+	{
+		LookAt(PointOfInterest, true, DeltaTime, 10.0f);
+	}
 }
 
 // Called to bind functionality to input
@@ -91,7 +150,7 @@ void AISCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 	{
 		Input->BindAction(MoveAction, ETriggerEvent::Triggered, this, &AISCharacter::Move);
 		Input->BindAction(ShootAction, ETriggerEvent::Started, this, &AISCharacter::StartShoot);
-		Input->BindAction(ShootAction, ETriggerEvent::Ongoing, this, &AISCharacter::HandleShoot);
+		Input->BindAction(ShootAction, ETriggerEvent::Triggered, this, &AISCharacter::HandleShoot);
 		Input->BindAction(ShootAction, ETriggerEvent::Completed, this, &AISCharacter::StopShoot);
 	}
 }
